@@ -649,6 +649,9 @@
         if (googleLoginBtn) {
             googleLoginBtn.addEventListener('click', async () => {
                 const provider = new GoogleAuthProvider();
+                // 👇 加入這行！強制每次都跳出「選擇帳戶」畫面
+                provider.setCustomParameters({ prompt: 'select_account' });
+                
                 try {
                     // 呼叫 Firebase 彈出 Google 登入視窗
                     await signInWithPopup(auth, provider);
