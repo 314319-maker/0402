@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食光守護者｜2026 智能食材管理系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; }
+
+        /* 背景質感紋理 */
+        .bg-pattern {
+            background-color: #f8fafc;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* 動畫特效 */
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up { animation: fade-in-up 0.8s ease-out forwards; }
+       
+        @keyframes scan-line {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        .scan-line-animation {
+            position: absolute; left: 0; width: 100%; height: 2px;
+            background-color: #38bdf8; box-shadow: 0 0 4px #38bdf8;
+            animation: scan-line 2s linear infinite;
+        }
+       
+        .tab-content.hidden { display: none; }
+       
+        /* 導航列樣式 */
+        .nav-link {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            color: #64748b;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .nav-link:hover { color: #0ea5e9; }
+        .nav-link.active {
+            color: #0284c7;
+            border-bottom: 2px solid #0284c7;
+        }
+
+        .story-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .calendar-day { min-height: 80px; transition: all 0.2s; }
+        .calendar-day:hover { background-color: #f0f9ff; }
+        .calendar-day.active-day { background-color: #e0f2fe; border: 2px solid #0ea5e9; }
+        .badge-locked { filter: grayscale(100%); opacity: 0.5; }
+        
+        /* 勳章解鎖動畫 */
+        @keyframes pop-in {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .badge-unlocked-anim { animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    </style>
+</head>
+<body class="bg-pattern min-h-screen flex flex-col text-slate-800">
+
+    <!-- 導航列 (預設隱藏，進入系統後顯示) -->
+    <nav id="main-nav" class="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-50 hidden transition-all duration-500">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- 點擊 Logo 回到首頁 -->
+                <div class="flex items-center gap-2 cursor-pointer" onclick="switchTab('landing')">
+                    <img src="https://cdn-icons-png.flaticon.com/512/2921/2921822.png" alt="食光守護者 Logo" class="w-8 h-8 rounded-lg object-cover">
+                    <span class="text-xl font-bold text-slate-800 hidden sm:block">食光守護者</span>
+                </div>
+
+                <div class="hidden md:flex space-x-1 overflow-x-auto no-scrollbar w-full ml-4">
+                    <!-- 功能選單 -->
+                    <a onclick="switchTab('inventory')" id="nav-inventory" class="nav-link">食材管理</a>
+                    <a onclick="switchTab('calendar')" id="nav-calendar" class="nav-link">效期日曆</a>
+                    <a onclick="switchTab('recipes')" id="nav-recipes" class="nav-link">食譜匹配</a>
+                    <a onclick="switchTab('shopping')" id="nav-shopping" class="nav-link">購物清單</a>
+                    <a onclick="switchTab('community')" id="nav-community" class="nav-link">惜食市集</a>
+                    <a onclick="switchTab('analytics')" id="nav-analytics" class="nav-link">數據分析</a>
+                    <a onclick="switchTab('storybook')" id="nav-storybook" class="nav-link">繪本故事</a>
+                    <a onclick="switchTab('interactive')" id="nav-interactive" class="nav-link">互動成就</a>
+                </div>
+               
+                <div class="relative ml-4" id="user-menu-container">
+                     <button id="login-btn" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 shadow-sm transition">
+                        <span>登入</span>
+                    </button>
+                    <div id="user-dropdown" class="absolute right-0 top-full mt-3 w-56 bg-white rounded-xl shadow-xl border border-gray-100 hidden flex-col overflow-hidden z-[60] transform origin-top-right transition-all animate-fade-up">
+                        <div class="px-4 py-3 border-b border-gray-50 bg-gray-50/80">
+                            <p class="text-xs text-gray-500 mb-1">目前使用者</p>
+                            <p id="user-email-display" class="text-sm font-bold text-gray-800 truncate">user@example.com</p>
+                        </div>
+                        <button id="logout-btn" class="w-full text-left px-4 py-3 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition font-bold text-sm flex items-center gap-2 group">
+                            <svg class="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                            登出系統
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+       
+        <!-- 手機版選單 -->
+        <div class="md:hidden flex overflow-x-auto px-4 pb-2 space-x-4 text-sm whitespace-nowrap border-t bg-white no-scrollbar">
+            <a onclick="switchTab('inventory')" class="py-2 text-gray-600">庫存</a>
+            <a onclick="switchTab('calendar')" class="py-2 text-gray-600">日曆</a>
+            <a onclick="switchTab('recipes')" class="py-2 text-gray-600">食譜</a>
+            <a onclick="switchTab('shopping')" class="py-2 text-gray-600">購物</a>
+            <a onclick="switchTab('analytics')" class="py-2 text-gray-600">數據</a>
+            <a onclick="switchTab('interactive')" class="py-2 text-gray-600">成就</a>
+        </div>
+    </nav>
+
+    <div class="flex-grow w-full">
+       
+        <!-- 獨立首頁 (Landing Page) - 全螢幕顯示 -->
+        <div id="landing-tab-content" class="tab-content w-full h-screen fixed inset-0 z-40 bg-white overflow-y-auto">
+            <div class="bg-gradient-to-b from-sky-50 to-white min-h-full flex items-center justify-center">
+                <div class="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-2 gap-12 items-center">
+                    <div class="space-y-8 animate-fade-up">
+                        <div class="inline-block bg-blue-100 text-blue-800 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm border border-blue-200">
+                            🏆 2026 智能食材管理系統
+                        </div>
+                        <h1 class="text-5xl md:text-7xl font-bold text-slate-800 leading-tight tracking-tight">
+                            食光守護者<br><span class="text-sky-500">Food Guardian</span>
+                        </h1>
+                        <p class="text-xl text-slate-500 font-medium">Research Title: AI-Powered Smart Food Guardian</p>
+                        <p class="text-slate-600 text-lg leading-relaxed text-justify max-w-lg">
+                            別讓冰箱成為食物的墳場。我們整合 <span class="font-bold text-sky-600">AI 影像辨識</span> 與 <span class="font-bold text-amber-500">雲端大數據</span>，打造全方位的智慧食材管理系統，從入庫到料理，全程守護您的每一份新鮮。
+                        </p>
+                        
+                        <div class="flex flex-col sm:flex-row gap-4 pt-4">
+                            <!-- 進入系統按鈕 - 點擊後顯示導航列並跳轉 -->
+                            <button onclick="switchTab('inventory')" class="px-8 py-4 bg-sky-500 text-white rounded-full font-bold text-lg shadow-xl hover:bg-sky-600 hover:shadow-2xl transform transition hover:-translate-y-1 flex items-center justify-center gap-2">
+                                <span>🚀 開始使用</span>
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                            </button>
+                            <!-- 已更改：跳轉至數據分析 -->
+                            <button onclick="switchTab('analytics')" class="px-8 py-4 bg-white border-2 border-sky-200 text-sky-600 rounded-full font-bold text-lg hover:border-sky-400 hover:text-sky-700 transition shadow-sm flex items-center justify-center gap-2">
+                                <span>📊 數據分析</span>
+                            </button>
+                        </div>
+                        <p class="text-sm text-slate-400 mt-8">
+                            
+                        </p>
+                    </div>
+                
+                    <!-- 首頁右側視覺圖 -->
+                    <div class="relative animate-fade-up flex justify-center items-center hidden md:flex" style="animation-delay: 0.2s;">
+                        <div class="absolute w-[500px] h-[500px] bg-sky-100 rounded-full blur-3xl -z-10 opacity-60"></div>
+                        <div class="relative w-96 h-96 rounded-full overflow-hidden shadow-2xl border-8 border-white group">
+                            <img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?q=80&w=800&auto=format&fit=crop"
+                                class="w-full h-full object-cover transform group-hover:scale-110 transition duration-700"
+                                alt="食光守護者 主視覺">
+                            <div class="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-300">
+                                <span class="text-white font-bold text-2xl tracking-widest">FOOD GUARDIAN</span>
+                            </div>
+                        </div>
+                        <!-- 漂浮的小卡片裝飾 -->
+                        <div class="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-lg animate-bounce" style="animation-duration: 3s;">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-xl">🥦</div>
+                                <div>
+                                    <p class="text-xs text-gray-500">庫存狀態</p>
+                                    <p class="font-bold text-green-600">新鮮</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="absolute top-10 -right-6 bg-white p-4 rounded-xl shadow-lg animate-bounce" style="animation-duration: 4s;">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-xl">🥛</div>
+                                <div>
+                                    <p class="text-xs text-gray-500">即期提醒</p>
+                                    <p class="font-bold text-red-600">剩 2 天</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系統功能內容區域 (包含 Navbar 下的所有頁面) -->
+        <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+
+            <!-- 1. 食材管理 Tab -->
+            <div id="inventory-tab-content" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg border border-slate-100 h-min sticky top-20">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-2">
+                                <div class="bg-gray-100 p-1 rounded">📷</div>
+                                <h2 class="text-xl font-bold text-gray-800">新增食材</h2>
+                            </div>
+                            <button id="notify-btn" class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded hover:bg-slate-200 transition" title="開啟瀏覽器通知">
+                                🔔 開啟提醒
+                            </button>
+                        </div>
+                       
+                        <div class="relative w-full aspect-video bg-[#0f172a] rounded-lg shadow-inner overflow-hidden flex items-center justify-center mb-4">
+                            <video id="local-video" class="w-full h-full object-cover" autoplay playsinline style="display:none;"></video>
+                            <canvas id="snapshot-canvas" class="hidden"></canvas>
+                            <div id="camera-overlay" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
+                                <svg class="w-12 h-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                <p class="text-sm font-medium">相機已關閉</p>
+                            </div>
+                            <div id="ai-scan-effect" class="absolute inset-0 hidden pointer-events-none z-20">
+                                <div class="scan-line-animation"></div>
+                                <div class="absolute top-2 left-2 bg-sky-500/80 text-white text-xs px-2 py-1 rounded animate-pulse">AI 多重識別中...</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <button type="button" id="start-camera-btn" class="bg-[#0ea5e9] text-white py-2.5 rounded-lg hover:bg-[#0284c7] font-bold shadow-sm transition active:scale-95">
+                                開啟鏡頭
+                            </button>
+                            <button type="button" id="stop-camera-btn" class="bg-[#f43f5e] text-white py-2.5 rounded-lg hover:bg-[#e11d48] font-bold shadow-sm transition active:scale-95" disabled>
+                                關閉
+                            </button>
+                        </div>
+                        <button type="button" id="rescan-btn" class="w-full mb-4 bg-[#f59e0b] text-white py-2.5 rounded-lg hover:bg-[#d97706] font-bold shadow-sm transition flex items-center justify-center gap-2 active:scale-95" disabled>
+                            重新掃描
+                        </button>
+
+                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4 flex flex-col items-center">
+                            <p class="text-slate-600 text-sm font-bold mb-3 flex items-center gap-2">
+                                <span>||||</span> 掃描商品條碼 (Barcode / QR Code)
+                            </p>
+                            <div id="reader" width="100%" class="mb-3 rounded overflow-hidden shadow-inner hidden"></div>
+                            
+                            <div class="flex gap-2 w-full">
+                                <button type="button" id="start-barcode-btn" class="flex-1 bg-white border-2 border-slate-300 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-100 transition active:scale-95 flex items-center justify-center gap-2">
+                                    📷 開啟掃描器
+                                </button>
+                                <button type="button" id="stop-barcode-btn" class="flex-1 bg-slate-200 text-slate-500 py-2 rounded-lg text-sm font-bold cursor-not-allowed hidden items-center justify-center gap-2">
+                                    ⏹️ 關閉掃描
+                                </button>
+                            </div>
+                        </div>
+
+                        <form id="add-ingredient-form" class="space-y-3 pt-2 border-t border-slate-100">
+                            <div>
+                                <label class="text-sm font-bold text-gray-700">食材名稱</label>
+                                <input type="text" id="name" required placeholder="等待識別..." class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 bg-white focus:border-sky-500 focus:ring-sky-500 outline-none">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-sm font-bold text-gray-700">種類</label>
+                                    <select id="type" class="w-full mt-1 border border-slate-300 rounded-lg p-2.5 bg-white outline-none">
+                                        <option value="蔬菜">蔬菜</option>
+                                        <option value="肉類">肉類</option>
+                                        <option value="海鮮">海鮮</option>
+                                        <option value="水果">水果</option>
+                                        <option value="奶製品">奶製品</option>
+                                        <option value="主食">主食</option>
+                                        <option value="調味料">調味料</option>
+                                        <option value="烘焙原料">烘焙原料</option>
+                                        <option value="中餐乾貨">中餐乾貨</option>
+                                        <option value="飲料">飲料</option>
+                                        <option value="其他">其他</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-bold text-[#d97706]">📅 有效期限</label>
+                                    <input type="date" id="expiryDate" required class="w-full mt-1 border border-[#fcd34d] rounded-lg p-2.5 bg-[#fffbeb] text-gray-700 outline-none">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full mt-2 bg-[#0ea5e9] text-white py-3 rounded-lg font-bold shadow-md hover:bg-[#0284c7] transform transition active:scale-95 flex items-center justify-center gap-2">
+                                確認入庫
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border-t-4 border-[#0ea5e9]">
+                        <div class="flex justify-between items-center mb-4 border-b pb-3">
+                            <h2 class="text-xl font-bold text-gray-800">📦 冰箱庫存清單</h2>
+                            <button id="delete-expired-btn" class="text-sm bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg hover:bg-rose-100 font-bold transition border border-rose-100 flex items-center gap-1">
+                                清除所有過期
+                            </button>
+                        </div>
+                        <div id="ingredient-list" class="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                            <p class="text-center text-gray-400 py-10">讀取中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 日曆 Tab -->
+            <div id="calendar-tab-content" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-slate-100">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">📅 效期日曆</h2>
+                            <div class="flex items-center gap-4 bg-slate-50 px-4 py-1 rounded-full border border-slate-200">
+                                <button onclick="changeMonth(-1)" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white hover:shadow text-slate-500 font-bold">‹</button>
+                                <span id="calendar-month-year" class="font-bold text-slate-700 w-28 text-center">Loading...</span>
+                                <button onclick="changeMonth(1)" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white hover:shadow text-slate-500 font-bold">›</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1 text-center mb-2">
+                            <div class="text-xs font-bold text-rose-500">日</div><div class="text-xs font-bold text-slate-500">一</div><div class="text-xs font-bold text-slate-500">二</div><div class="text-xs font-bold text-slate-500">三</div><div class="text-xs font-bold text-slate-500">四</div><div class="text-xs font-bold text-slate-500">五</div><div class="text-xs font-bold text-slate-500">六</div>
+                        </div>
+                        <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+                        <div class="flex gap-4 mt-6 text-xs text-slate-500 justify-end">
+                            <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-rose-500"></div> 過期/當日</div>
+                            <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-amber-400"></div> 即期 (3天內)</div>
+                            <div class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-green-400"></div> 新鮮</div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg border border-slate-100 h-min">
+                        <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2">
+                            <span id="selected-date-display" class="text-lg text-sky-600">請點擊日期</span>
+                            <span class="text-xs text-slate-400 ml-auto bg-slate-100 px-2 py-1 rounded">當日到期項目</span>
+                        </h3>
+                        <div id="calendar-detail-list" class="space-y-3 min-h-[200px]">
+                            <p class="text-center text-gray-400 py-8 text-sm">點擊日曆上的日期<br>查看當天到期的食材</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 食譜 Tab (更新版本) -->
+            <div id="recipes-tab-content" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-[#f43f5e]">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg class="w-6 h-6 text-[#f43f5e]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                        <h2 class="text-xl font-bold text-gray-800">智能食譜匹配</h2>
+                    </div>
+                    <div class="bg-[#fff1f2] border border-[#fecdd3] p-4 rounded-lg mb-6 text-[#be123c] text-sm font-medium">
+                        系統會根據您目前的「庫存食材」來推薦料理。缺少的食材會自動標示。
+                    </div>
+                    <button id="match-recipe-btn" class="mb-8 bg-[#f43f5e] text-white px-8 py-2.5 rounded-lg font-bold hover:bg-[#e11d48] shadow-md transition flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        尋找可製作料理
+                    </button>
+                    <!-- 修改為卡片網格 -->
+                    <div id="recipe-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="col-span-full text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                            <p class="text-gray-500 font-medium">點擊上方按鈕，AI 將為您分析最佳食譜！</p>
+                        </div>
+                    </div>
+                    
+                    <div id="suggestion-section" class="mt-10 border-t border-dashed border-[#fecdd3] pt-8 hidden">
+                        <h3 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+                            💡 靈感推薦（再添購一點食材就能做）
+                        </h3>
+                        <div id="suggested-recipe-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 購物清單 Tab -->
+            <div id="shopping-tab-content" class="tab-content hidden">
+                <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-indigo-500">
+                    <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold text-gray-800">🛒 智慧購物清單</h2><button onclick="autoGenerateShoppingList()" class="text-sm bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-bold transition">✨ 一鍵匯入缺貨食材</button></div>
+                    <div class="flex gap-2 mb-6"><input type="text" id="shopping-input" placeholder="輸入想買的東西..." class="flex-1 border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-300 outline-none"><button onclick="addShoppingItem()" class="bg-indigo-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-600 transition">新增</button></div>
+                    <ul id="shopping-list-container" class="space-y-2"></ul>
+                </div>
+            </div>
+
+            <!-- 5. 惜食市集 Tab -->
+            <div id="community-tab-content" class="tab-content hidden">
+                <div class="text-center mb-8 animate-fade-up"><h2 class="text-2xl font-bold text-slate-800">🤝 惜食互助市集</h2><p class="text-slate-500">將多餘的食材分享給附近的鄰居，一起減少浪費！</p></div>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden border border-slate-100 hover:shadow-xl transition group">
+                        <div class="h-40 bg-orange-100 relative overflow-hidden"><img src="https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?q=80&w=400" class="w-full h-full object-cover group-hover:scale-110 transition duration-500"><div class="absolute bottom-2 left-2 bg-white/90 px-2 py-1 rounded text-xs font-bold text-orange-600">距離 500m</div></div>
+                        <div class="p-5"><div class="flex justify-between items-start mb-2"><h3 class="font-bold text-lg">新鮮紅蘿蔔</h3><span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">免費贈送</span></div><p class="text-sm text-slate-500 mb-4">買太多了吃不完，還有大約 3 根，希望能送給需要的人！</p><div class="flex items-center justify-between border-t pt-3"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold">陳</div><span class="text-sm text-slate-600">陳小美</span></div><button onclick="Swal.fire('已送出請求', '對方將會收到您的訊息', 'success')" class="text-sm bg-orange-500 text-white px-3 py-1.5 rounded hover:bg-orange-600 transition">我想要</button></div></div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden border border-slate-100 hover:shadow-xl transition group">
+                        <div class="h-40 bg-green-100 relative overflow-hidden"><img src="https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=400" class="w-full h-full object-cover group-hover:scale-110 transition duration-500"><div class="absolute bottom-2 left-2 bg-white/90 px-2 py-1 rounded text-xs font-bold text-green-600">距離 1.2km</div></div>
+                        <div class="p-5"><div class="flex justify-between items-start mb-2"><h3 class="font-bold text-lg">有機小白菜</h3><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">以物易物</span></div><p class="text-sm text-slate-500 mb-4">這週配送的蔬菜箱太多了，想交換水果或是飲料。</p><div class="flex items-center justify-between border-t pt-3"><div class="flex items-center gap-2"><div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold">王</div><span class="text-sm text-slate-600">王大明</span></div><button onclick="Swal.fire('已送出請求', '對方將會收到您的訊息', 'success')" class="text-sm bg-blue-500 text-white px-3 py-1.5 rounded hover:bg-blue-600 transition">交換</button></div></div>
+                    </div>
+                    <div id="add-market-card" class="bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center p-6 text-center hover:bg-slate-100 transition cursor-pointer" onclick="publishFoodItem()">                        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 text-3xl">➕</div><h3 class="font-bold text-slate-700">刊登您的食材</h3><p class="text-sm text-slate-500">分享多餘的食物，讓愛延續</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. 數據分析 Tab -->
+            <div id="analytics-tab-content" class="tab-content hidden">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                    <div class="bg-white p-4 rounded-xl shadow border-l-4 border-blue-500">
+                        <p class="text-sm text-gray-500 font-bold">總庫存量</p>
+                        <h3 id="stat-total-items" class="text-3xl font-bold text-blue-700 mt-1">0</h3>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow border-l-4 border-amber-500">
+                        <p class="text-sm text-gray-500 font-bold">過期</p>
+                        <h3 id="stat-warning-items" class="text-3xl font-bold text-amber-600 mt-1">0</h3>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow border-l-4 border-green-500">
+                        <p class="text-sm text-gray-500 font-bold">預估價值</p>
+                        <h3 id="stat-total-value" class="text-3xl font-bold text-green-700 mt-1">$0</h3>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow border-l-4 border-teal-500">
+                        <p class="text-sm text-gray-500 font-bold">累積減碳量</p>
+                        <h3 id="stat-carbon" class="text-3xl font-bold text-teal-700 mt-1">0 <span class="text-sm text-gray-400 font-normal">kg</span></h3>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow border">
+                        <h3 class="font-bold mb-4">新鮮度分佈</h3>
+                        <div class="relative h-64 w-full">
+                            <canvas id="expirationChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow border">
+                        <h3 class="font-bold mb-4">種類統計</h3>
+                        <div class="relative h-64 w-full">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. 繪本故事 Tab -->
+            <div id="storybook-tab-content" class="tab-content hidden">
+                <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-100">
+                    <h2 class="text-3xl font-bold text-slate-800 mb-6 text-center">📖 食光故事屋</h2>
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="story-card bg-orange-50 rounded-2xl p-6 shadow-md cursor-pointer flex flex-col items-center" onclick="openStory('carrot')">
+                            <div class="text-6xl mb-4">🥕</div>
+                            <h3 class="text-xl font-bold text-orange-800 text-center mb-auto">小紅蘿蔔的漂流</h3>
+                            <a href="https://gemini.google.com/share/cd719f59cb1f" class="w-full"><button class="w-full mt-4 py-2 bg-orange-400 text-white rounded-lg font-bold">閱讀故事</button></a>
+                        </div>
+                        <div class="story-card bg-sky-50 rounded-2xl p-6 shadow-md cursor-pointer flex flex-col items-center" onclick="openStory('robot')">
+                            <div class="text-6xl mb-4">🤖</div>
+                            <h3 class="text-xl font-bold text-sky-800 text-center mb-auto">阿冷守護神</h3>
+                            <a href="https://gemini.google.com/share/a899039055f3" class="w-full"><button class="w-full mt-4 py-2 bg-sky-400 text-white rounded-lg font-bold">閱讀故事</button></a>
+                        </div>
+                        <div class="story-card bg-green-50 rounded-2xl p-6 shadow-md cursor-pointer flex flex-col items-center" onclick="openStory('earth')">
+                            <div class="text-6xl mb-4">🌏</div>
+                            <h3 class="text-xl font-bold text-green-800 text-center mb-auto">地球媽媽的眼淚</h3>
+                            <a href="https://gemini.google.com/share/4add6be5c56e" class="w-full"><button class="w-full mt-4 py-2 bg-green-500 text-white rounded-lg font-bold">閱讀故事</button></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. 互動成就 Tab -->
+            <div id="interactive-tab-content" class="tab-content hidden">
+                <div class="bg-white rounded-xl p-6 shadow-lg border border-purple-100 mb-6">
+                    <div class="flex items-center gap-2 mb-4">
+                        <h3 class="text-xl font-bold text-purple-800">🏆 我的成就勳章</h3>
+                        <span class="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full font-bold">Gamification</span>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4" id="badges-container">
+                        <!-- JS 動態生成 -->
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-xl p-6 shadow-lg border border-blue-100">
+                        <h3 class="text-xl font-bold text-blue-800 mb-2">🍳 今天吃什麼？</h3>
+                        <div id="dishDisplay" class="w-full text-center bg-blue-50 py-12 rounded-xl my-4 text-xl text-gray-400 border border-blue-100">點擊按鈕開始...</div>
+                        <button id="btnSpinDish" class="w-full py-3 bg-[#3b82f6] text-white rounded-full font-bold hover:bg-blue-600 shadow-lg transition transform active:scale-95">開始轉盤</button>
+                    </div>
+                    <div class="bg-white rounded-xl p-6 shadow-md border border-teal-100 flex flex-col justify-between hover:shadow-2xl hover:-translate-y-1 hover:border-teal-200 transition-all duration-300 ease-in-out group cursor-default">
+                        <h3 class="text-xl font-bold text-teal-800 mb-2 flex items-center gap-2">
+                            ✨ 食光語錄
+                        </h3>
+                        <div class="w-full text-center bg-gradient-to-br from-teal-50 to-white py-10 px-6 rounded-2xl my-4 border border-teal-100 flex-grow flex items-center justify-center min-h-[160px] relative overflow-hidden group-hover:border-teal-200 transition-colors">
+                            
+                            <svg class="absolute -top-1 -left-1 w-12 h-12 text-teal-100 opacity-60 transform group-hover:scale-110 group-hover:text-teal-200 transition-all duration-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z"></path></svg>
+                            <svg class="absolute -bottom-2 -right-2 w-16 h-16 text-teal-100 opacity-60 transform group-hover:scale-110 group-hover:rotate-12 group-hover:text-teal-200 transition-all duration-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z"></path></svg>
+                            
+                            <p id="quote-display" class="text-xl text-teal-700 font-medium leading-relaxed relative z-10 transition-all duration-500 ease-out transform scale-100 opacity-100">
+                                讀取中...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 故事 Modal -->
+    <div id="story-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[80vh] animate-fade-up">
+            <div id="story-header" class="p-6 bg-orange-100 flex justify-between items-center rounded-t-2xl">
+                <h3 id="story-title" class="text-xl font-bold text-orange-900">故事閱讀中...</h3>
+                <button onclick="closeStory()" class="text-2xl font-bold text-gray-500 hover:text-gray-800 transition">✕</button>
+            </div>
+            <div id="story-body" class="p-8 overflow-y-auto text-lg leading-loose whitespace-pre-line text-slate-700"></div>
+        </div>
+    </div>
+
+    <!-- 登入 Modal -->
+    <div id="login-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 animate-fade-up">
+            <h3 class="text-2xl font-bold text-slate-800 mb-6 text-center">歡迎回來</h3>
+            
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">電子郵件</label>
+                    <input type="email" class="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-sky-500" placeholder="user@example.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">密碼</label>
+                    <input type="password" class="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-sky-500" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full bg-sky-500 text-white py-3 rounded-lg font-bold hover:bg-sky-600 transition shadow-lg mt-2">
+                    一般登入
+                </button>
+            </form>
+
+            <div class="relative my-6">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                <div class="relative flex justify-center text-sm"><span class="px-2 bg-white text-gray-400 font-medium">快速登入</span></div>
+            </div>
+
+            <button id="google-login-btn" class="w-full bg-white border border-gray-300 text-gray-700 py-2.5 rounded-lg font-bold hover:bg-gray-50 transition shadow-sm flex items-center justify-center gap-2 active:scale-95 transform">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                使用 Google 帳號登入
+            </button>
+
+            <button onclick="closeLoginModal()" class="w-full text-slate-400 text-sm mt-4 hover:text-slate-600">取消</button>
+        </div>
+    </div>
+
+    <!-- Script Module -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, signInWithCustomToken, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        // 全域函數：切換頁面
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            
+            const target = document.getElementById(`${tabName}-tab-content`);
+            if (target) target.classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+            const activeNav = document.getElementById(`nav-${tabName}`);
+            if(activeNav) activeNav.classList.add('active');
+            
+            // 獨立首頁導航列控制
+            const nav = document.getElementById('main-nav');
+            if (tabName === 'landing') nav.classList.add('hidden');
+            else nav.classList.remove('hidden');
+            
+            // 頁面初始化
+            if(tabName === 'analytics') setTimeout(updateChartGlobal, 100);
+            if(tabName === 'calendar') setTimeout(renderCalendar, 100);
+            if(tabName === 'shopping') renderShoppingList();
+            if(tabName === 'interactive') checkAchievements();
+            
+            window.scrollTo(0, 0); 
+        }
+
+        // 🔑 換成你們專屬的 Firebase 真實金鑰
+        const firebaseConfig = {
+            apiKey: "AIzaSyBodWdzb7PdiA-rhmLhsJQAZGHNBy_PEgs",
+            authDomain: "project-4222239914710232316.firebaseapp.com",
+            projectId: "project-4222239914710232316",
+            storageBucket: "project-4222239914710232316.firebasestorage.app",
+            messagingSenderId: "1007294871920",
+            appId: "1:1007294871920:web:f2899798f46b5e2ed6b7b5"
+        };
+        
+        let app, auth, db;
+        try { 
+            app = initializeApp(firebaseConfig); 
+            auth = getAuth(app); 
+            db = getFirestore(app); // 確保有這行喔！
+        } catch (e) { 
+            console.warn("Firebase Init Error:", e); 
+        }
+
+        // ==========================================
+        // 雲端資料庫同步邏輯 (Firestore)
+        // ==========================================
+        
+        // 將目前的冰箱資料上傳到雲端
+        window.saveToCloud = async function() {
+            if (!auth.currentUser) return; // 沒登入就不存
+            try {
+                // 將 ingredients 陣列存入 users 資料夾下，檔名為該使用者的 UID
+                await setDoc(doc(db, "users", auth.currentUser.uid), {
+                    inventory: ingredients
+                }, { merge: true });
+            } catch (error) {
+                console.error("雲端存檔失敗:", error);
+            }
+        };
+
+        // 從雲端下載專屬的冰箱資料
+        window.loadFromCloud = async function(uid) {
+            try {
+                const docSnap = await getDoc(doc(db, "users", uid));
+                if (docSnap.exists() && docSnap.data().inventory) {
+                    ingredients = docSnap.data().inventory; // 覆蓋本地資料
+                } else {
+                    ingredients = []; // 如果是新用戶，給他一個空冰箱
+                }
+                renderUI(); // 重新渲染畫面
+                checkAchievements();
+            } catch (error) {
+                console.error("雲端讀取失敗:", error);
+            }
+        };
+// ==========================================
+        // 真實會員登入系統 (Google 授權)
+        // ==========================================
+        
+        // 1. 監聽使用者的登入狀態 (網頁重整也不會登出)
+        onAuthStateChanged(auth, (user) => {
+            updateUserUI(user);
+            if (user) {
+                // 👇 登入成功：從雲端下載他的專屬冰箱資料
+                loadFromCloud(user.uid);
+                
+                Swal.fire({ 
+                    title: `歡迎回來，${user.displayName || '守護者'}！`, 
+                    icon: 'success', 
+                    toast: true, 
+                    position: 'top-end', 
+                    showConfirmButton: false, 
+                    timer: 3000 
+                });
+            } else {
+                // 👇 登出狀態：清空冰箱，避免資料外洩給下一個人
+                ingredients = [];
+                renderUI();
+            }
+        });
+
+        // 2. 綁定「Google 登入」按鈕
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        if (googleLoginBtn) {
+            googleLoginBtn.addEventListener('click', async () => {
+                const provider = new GoogleAuthProvider();
+                try {
+                    // 呼叫 Firebase 彈出 Google 登入視窗
+                    await signInWithPopup(auth, provider);
+                    // 登入成功後，上面的 onAuthStateChanged 會自動接手更新畫面
+                } catch (error) {
+                    console.error("登入失敗:", error);
+                    Swal.fire('登入失敗', '請確認網路連線或授權狀態', 'error');
+                }
+            });
+        }
+
+        // 3. 綁定右上角的「登出」按鈕
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                    Swal.fire({ title: '已登出系統', icon: 'info', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                    // 切換下拉選單狀態
+                    document.getElementById('user-dropdown').classList.add('hidden');
+                    document.getElementById('user-dropdown').classList.remove('flex');
+                } catch (error) {
+                    console.error("登出失敗:", error);
+                }
+            });
+        }
+
+        // 4. 控制登入 Modal 視窗的開關
+        const loginBtnUI = document.getElementById('login-btn');
+        if (loginBtnUI) {
+            loginBtnUI.addEventListener('click', () => {
+                if (!auth.currentUser) {
+                    // 如果沒登入，打開登入視窗
+                    document.getElementById('login-modal').classList.remove('hidden');
+                    document.getElementById('login-modal').classList.add('flex');
+                } else {
+                    // 如果已登入，切換右上角的個人選單下拉
+                    const dropdown = document.getElementById('user-dropdown');
+                    dropdown.classList.toggle('hidden');
+                    dropdown.classList.toggle('flex');
+                }
+            });
+        }
+
+        // 關閉登入視窗的函數
+        window.closeLoginModal = function() {
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('login-modal').classList.remove('flex');
+        }
+        function updateUserUI(user) {
+            const loginBtn = document.getElementById('login-btn');
+            const userEmailDisplay = document.getElementById('user-email-display');
+            const userDropdown = document.getElementById('user-dropdown');
+            if (user) {
+                const username = user.displayName || user.email.split('@')[0];
+                const avatar = user.photoURL ? `<img src="${user.photoURL}" class="w-6 h-6 rounded-full border border-white">` : `<div class="w-6 h-6 bg-sky-500 rounded-full flex items-center justify-center text-xs text-white font-bold">${username[0].toUpperCase()}</div>`;
+                loginBtn.innerHTML = `${avatar}<span class="font-bold text-slate-700 hidden sm:block truncate max-w-[80px]">${username}</span><svg class="w-4 h-4 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+                loginBtn.className = 'flex items-center gap-2 px-3 py-1.5 bg-white border border-sky-200 text-sky-700 rounded-lg hover:bg-sky-50 shadow-sm transition cursor-pointer';
+                userEmailDisplay.innerText = user.email || "匿名使用者";
+                closeLoginModal();
+            } else {
+                loginBtn.innerHTML = `<span>登入</span>`;
+                loginBtn.className = 'flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 shadow-sm transition';
+                userDropdown.classList.add('hidden'); userDropdown.classList.remove('flex');
+            }
+        }
+
+        // 繪本邏輯
+        const stories = {
+            'carrot': "🥕 **小紅蘿蔔的漂流**\n\n我是小紅蘿蔔，因為主人忘記我，我在冰箱角落待了好久...好冷好黑喔！\n\n其實只要把我放在顯眼的地方，或者把新買的菜放後面，舊的放前面（這叫做「先進先出」），我就能早點變成美味的咖哩飯了！\n\n請不要忘記我，我很有營養喔！",
+            'robot': "🤖 **阿冷守護神**\n\n我是冰箱守護神阿冷。呼～最近主人把冰箱塞太滿了，冷氣吹不過去，我都快熱暈了！\n\n冰箱最好保持「七分滿」，這樣冷空氣才能流通，食物才不會壞掉，而且還能省電喔！\n\n讓我們一起幫地球降溫吧！",
+            'earth': "🌏 **地球媽媽的眼淚**\n\n你知道嗎？每浪費一份食物，地球媽媽就會掉一滴眼淚。\n\n生產食物需要好多水 and 土地，如果我們把食物丟掉，這些資源就白白浪費了，還會產生溫室氣體讓地球發燒。\n\n讓我們一起把飯吃光光，做個惜食小英雄，拯救地球吧！"
+        };
+        window.openStory = function(id) {
+            document.getElementById('story-body').innerHTML = stories[id].replace(/\n/g, '<br>');
+            document.getElementById('story-modal').classList.remove('hidden');
+            document.getElementById('story-modal').classList.add('flex');
+        }
+        window.closeStory = function() {
+            document.getElementById('story-modal').classList.add('hidden');
+            document.getElementById('story-modal').classList.remove('flex');
+        }
+
+        // 資料庫邏輯
+        const foodDatabase = {};
+       // 更新後的 200 種常用食材資料庫
+// 更新後的 100 種精選食材資料庫
+function generateFoodDatabase() {
+    const rawData = [
+        { type: '蔬菜', life: 7, items: ["高麗菜", "大白菜", "小白菜", "菠菜", "空心菜", "地瓜葉", "A菜", "九層塔", "青蔥", "蒜頭", "薑", "辣椒", "洋蔥", "青椒", "甜椒", "小黃瓜", "絲瓜", "苦瓜", "冬瓜", "南瓜", "櫛瓜", "茄子", "番茄", "秋葵", "玉米", "玉米筍", "紅蘿蔔", "白蘿蔔", "馬鈴薯", "地瓜", "芋頭", "竹筍", "筊白筍", "蘆筍", "豆芽菜", "四季豆", "毛豆", "香菇", "金針菇", "杏鮑菇", "花椰菜"] },
+        { type: '水果', life: 7, items: ["蘋果", "香蕉", "鳳梨", "木瓜", "西瓜", "哈密瓜", "葡萄", "草莓", "柳丁", "橘子", "檸檬", "百香果", "芒果", "芭樂", "水梨", "蓮霧", "火龍果", "奇異果", "桃子", "櫻桃"] },
+        { type: '肉類', life: 3, items: ["豬肉", "豬五花", "豬排", "香腸", "培根", "火腿", "牛肉", "牛排", "雞肉", "雞胸肉", "雞腿", "雞翅", "鮭魚", "鮪魚", "鱈魚", "鯖魚", "吳郭魚", "蝦子", "蛤蜊", "蚵仔"] },
+        { type: '主食', life: 180, items: ["白米", "麵條", "義大利麵", "吐司", "麵包", "包子", "水餃", "雞蛋", "豆腐", "豆乾", "豆皮", "牛奶", "豆漿", "燕麥奶", "優格", "起司", "奶油", "醬油", "番茄醬", "泡菜"] },
+        // ⬇️ 新增：烘焙原料 (保存期預設半年 180 天)
+        { type: '烘焙原料', life: 180, items: ["麵粉", "砂糖", "酵母粉", "泡打粉", "香草精", "巧克力", "杏仁粉", "抹茶粉", "奶油乳酪", "鮮奶油"] },
+        // ⬇️ 新增：中餐乾貨與調味 (乾貨保存期預設一年 365 天)
+        { type: '中餐乾貨', life: 365, items: ["木耳", "蝦米", "干貝", "八角", "豆豉"] },
+        { type: '調味料', life: 365, items: ["香油", "蠔油", "米酒", "豆瓣醬"] }
+    ];
+
+    let idCounter = 1;
+    for (const key in foodDatabase) delete foodDatabase[key]; 
+    
+    rawData.forEach(category => {
+        category.items.forEach(itemName => {
+            foodDatabase[idCounter.toString()] = { 
+                n: itemName, 
+                t: category.type, 
+                d: category.life 
+            };
+            idCounter++;
+        });
+    });
+    console.log(`資料庫初始化完成，共計 ${idCounter - 1} 種專業食材。`);
+}
+
+        document.addEventListener('DOMContentLoaded', () => {
+            generateFoodDatabase(); 
+            renderUI();
+            checkAchievements();
+            switchTab('landing'); // 確保一開始顯示 Landing Page
+
+            // 綁定事件
+            const manualBtn = document.getElementById('manual-scan-btn');
+            const startBtn = document.getElementById('start-camera-btn');
+            const stopBtn = document.getElementById('stop-camera-btn');
+            const rescanBtn = document.getElementById('rescan-btn');
+            const addIngredientForm = document.getElementById('add-ingredient-form');
+            const matchRecipeBtn = document.getElementById('match-recipe-btn');
+            const btnSpinDish = document.getElementById('btnSpinDish');
+            const btnCalculateWaste = document.getElementById('btnCalculateWaste');
+            const deleteExpiredBtn = document.getElementById('delete-expired-btn');
+            const notifyBtn = document.getElementById('notify-btn');
+
+            // Camera & DB Logic
+            let stream = null;
+            window.addToInventory = function(name, type, days) {
+            const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + days); const dateStr = expiryDate.toISOString().split('T')[0];
+            document.getElementById('name').value = name; 
+            document.getElementById('type').value = type; 
+            document.getElementById('expiryDate').value = dateStr;
+            
+            const newItem = { id: Date.now().toString() + "-" + Math.random().toString(36).substr(2, 5), name: name, type: type, expiry: dateStr };
+            ingredients.push(newItem); 
+            renderUI(); 
+            checkAchievements();
+            saveToCloud(); // 👈 加入這行，自動同步上雲端！
+        };
+
+// ==========================================
+            // 新增功能：條碼掃描入庫
+            // ==========================================
+            // 模擬的商品條碼資料庫 (你可以自己新增更多，條碼可以是數字或文字)
+            const barcodeDatabase = {
+                "4710018104106": { n: "統一鮮乳", t: "奶製品", d: 14 },
+                "4711588133503": { n: "義美厚豆奶", t: "飲料", d: 10 },
+                "123456789": { n: "有機高麗菜", t: "蔬菜", d: 7 },
+                "987654321": { n: "產銷履歷雞胸肉", t: "肉類", d: 3 }
+            };
+
+            const startBarcodeBtn = document.getElementById('start-barcode-btn');
+            const stopBarcodeBtn = document.getElementById('stop-barcode-btn');
+            const readerDiv = document.getElementById('reader');
+let html5QrcodeScanner;
+            let scannerObserver = null; // 新增：用來即時翻譯的隱形觀察器
+
+            // 啟動條碼掃描器
+            if(startBarcodeBtn) startBarcodeBtn.addEventListener('click', () => {
+                readerDiv.classList.remove('hidden');
+                startBarcodeBtn.classList.add('hidden');
+                stopBarcodeBtn.classList.remove('hidden');
+                stopBarcodeBtn.classList.add('flex');
+
+                // 1. 啟動隱形翻譯機，即時把英文介面換成中文並美化按鈕
+                scannerObserver = new MutationObserver((mutations, obs) => {
+                    const dict = {
+                        "Request Camera Permissions": "允許開啟相機",
+                        "Requesting camera permissions...": "正在請求相機權限...",
+                        "Scan an Image File": "改從相簿 / 圖片檔案掃描",
+                        "Scan using camera directly": "改用相機鏡頭掃描",
+                        "Choose Image": "選擇圖片",
+                        "No camera found": "找不到相機",
+                        "Camera based scan": "相機掃描",
+                        "File based scan": "檔案掃描",
+                        "Select Camera": "選擇相機",
+                        "Stop Scanning": "暫停掃描",
+                        "Start Scanning": "啟動相機",
+                        "Scan Image": "掃描圖片"
+                    };
+                    
+                    obs.disconnect(); // 暫停觀察，避免無限迴圈
+                    
+                    // 翻譯所有文字
+                    document.querySelectorAll('#reader span, #reader button, #reader a, #reader option').forEach(el => {
+                        el.childNodes.forEach(child => {
+                            if (child.nodeType === 3) { // 如果是文字節點
+                                const text = child.nodeValue.trim();
+                                if (dict[text]) child.nodeValue = dict[text];
+                            }
+                        });
+                    });
+
+                    // 順手美化預設的醜醜按鈕和連結，套用 Tailwind CSS
+                    document.querySelectorAll('#reader button').forEach(btn => {
+                        btn.className = 'bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold border border-slate-300 shadow-sm hover:bg-slate-200 m-1 transition';
+                    });
+                    document.querySelectorAll('#reader a').forEach(a => {
+                        a.className = 'text-sky-500 hover:text-sky-700 underline text-sm m-2 cursor-pointer font-bold inline-block';
+                    });
+                    
+                    obs.observe(readerDiv, { childList: true, subtree: true }); // 恢復觀察
+                });
+                // 讓翻譯機開始盯著掃描器區塊
+                scannerObserver.observe(readerDiv, { childList: true, subtree: true });
+
+                // 2. 初始化掃描器
+                html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+                    fps: 10, 
+                    qrbox: {width: 250, height: 150}, // 掃描框的大小
+                    aspectRatio: 1.0,
+                    showTorchButtonIfSupported: true 
+                }, false);
+
+                // 3. 掃描成功時的處理
+                html5QrcodeScanner.render((decodedText, decodedResult) => {
+                    html5QrcodeScanner.clear(); // 關閉相機
+                    if (scannerObserver) scannerObserver.disconnect(); // 關閉翻譯機
+                    
+                    readerDiv.classList.add('hidden');
+                    startBarcodeBtn.classList.remove('hidden');
+                    stopBarcodeBtn.classList.add('hidden');
+                    stopBarcodeBtn.classList.remove('flex');
+
+                    // 去資料庫比對條碼
+                    const item = barcodeDatabase[decodedText];
+                    
+                    if (item) {
+                        Swal.fire({
+                            title: '掃描成功！',
+                            html: `偵測到商品：<b>${item.n}</b> (${item.t})<br>預設保存期限：${item.d} 天<br><br>是否確認加入庫存？`,
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonColor: '#0ea5e9',
+                            cancelButtonColor: '#64748b',
+                            confirmButtonText: '確定入庫',
+                            cancelButtonText: '取消'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                addToInventory(item.n, item.t, item.d);
+                                Swal.fire({ title: '已入庫', icon: 'success', timer: 1500, showConfirmButton: false });
+                            }
+                        });
+                    } else {
+                        Swal.fire({
+                            title: '找不到商品資訊',
+                            text: `掃描到的條碼為：${decodedText}，但資料庫中無此商品。`,
+                            icon: 'warning'
+                        });
+                    }
+                }, (errorMessage) => {
+                    // 掃描失敗或還沒掃到時，保持安靜繼續掃
+                });
+            });
+
+            // 手動關閉條碼掃描器
+            if(stopBarcodeBtn) stopBarcodeBtn.addEventListener('click', () => {
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.clear(); // 關閉相機
+                }
+                if (scannerObserver) {
+                    scannerObserver.disconnect(); // 關閉翻譯機
+                }
+                readerDiv.classList.add('hidden');
+                startBarcodeBtn.classList.remove('hidden');
+                stopBarcodeBtn.classList.add('hidden');
+                stopBarcodeBtn.classList.remove('flex');
+            });
+            
+            function triggerAutoScan() {
+                document.getElementById('ai-scan-effect').classList.remove('hidden'); 
+                rescanBtn.disabled = true;
+                
+                setTimeout(() => {
+                    const keys = Object.keys(foodDatabase);
+                    const scanNum = Math.floor(Math.random() * 2) + 2; 
+                    let identifiedResults = [];
+                    
+                    for(let i = 0; i < scanNum; i++) {
+                        const randomKey = keys[Math.floor(Math.random() * keys.length)];
+                        const item = foodDatabase[randomKey];
+                        identifiedResults.push(item);
+                    }
+                    
+                    document.getElementById('ai-scan-effect').classList.add('hidden'); 
+                    rescanBtn.disabled = false;
+                    
+                    const itemNamesHtml = identifiedResults.map(it => `<b>${it.n}</b> (${it.t})`).join('<br>');
+                    
+                    Swal.fire({ 
+                        title: `AI 多重識別成功 (共 ${scanNum} 件)`, 
+                        html: `辨識到以下食材：<br><div class="text-left mt-3 bg-slate-50 p-3 rounded border text-sm max-h-40 overflow-y-auto">${itemNamesHtml}</div><br>是否確定加入庫存？`, 
+                        icon: 'success', 
+                        showCancelButton: true,
+                        confirmButtonColor: '#0ea5e9',
+                        cancelButtonColor: '#f59e0b',
+                        confirmButtonText: '確定加入',
+                        cancelButtonText: '重新掃描'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            identifiedResults.forEach(item => {
+                                addToInventory(item.n, item.t, item.d);
+                            });
+                            Swal.fire({ title: '入庫成功', icon: 'success', timer: 1500, showConfirmButton: false });
+                        } else if (result.dismiss === Swal.DismissReason.cancel) {
+                            triggerAutoScan();
+                        }
+                    });
+                }, 2000);
+            }
+
+// --- 更新後的手機相機與 AI 辨識邏輯 ---
+const SERVER_URL = "http://127.0.0.1:5000"; // 部署上雲端後，請將這裡改成雲端的 API 網址
+const videoEl = document.getElementById('local-video');
+const canvasEl = document.getElementById('snapshot-canvas');
+let localStream = null;
+
+// 1. 開啟手機鏡頭
+if(startBtn) startBtn.addEventListener('click', async () => { 
+    try {
+        // 請求調用相機（強制要求高畫質與後鏡頭）
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'environment',
+                width: { ideal: 1920 },  // 要求 Full HD 寬度
+                height: { ideal: 1080 }  // 要求 Full HD 高度
+            } 
+        });
+        videoEl.srcObject = localStream;
+        videoEl.style.display = 'block'; 
+        document.getElementById('camera-overlay').classList.add('hidden'); 
+        
+        startBtn.disabled = true; 
+        stopBtn.disabled = false; 
+        rescanBtn.disabled = false;
+    } catch (err) {
+        console.error("相機權限錯誤:", err);
+        Swal.fire('無法開啟鏡頭', '請確認瀏覽器已給予相機權限！', 'error');
+    }
+});
+
+// 2. 關閉手機鏡頭
+if(stopBtn) stopBtn.addEventListener('click', () => { 
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop()); // 關閉所有視訊軌道
+        localStream = null;
+    }
+    
+    videoEl.srcObject = null;
+    videoEl.style.display = 'none'; 
+    document.getElementById('camera-overlay').classList.remove('hidden'); 
+    document.getElementById('ai-scan-effect').classList.add('hidden'); 
+    
+    startBtn.disabled = false; 
+    stopBtn.disabled = true; 
+    rescanBtn.disabled = true; 
+});
+
+// 3. 點擊掃描：拍照截圖並送給後端 AI
+if(rescanBtn) rescanBtn.addEventListener('click', async () => { 
+    document.getElementById('ai-scan-effect').classList.remove('hidden'); 
+    rescanBtn.disabled = true;
+    
+    // 將當下 video 的畫面畫到 canvas 上
+    canvasEl.width = videoEl.videoWidth;
+    canvasEl.height = videoEl.videoHeight;
+    canvasEl.getContext('2d').drawImage(videoEl, 0, 0);
+    
+    // 將 canvas 轉換為 Base64 圖片編碼
+    const base64Image = canvasEl.toDataURL('image/jpeg', 0.8);
+    
+    try {
+        // 發送 POST 請求給 Python 後端
+        const response = await fetch(`${SERVER_URL}/scan_image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64Image })
+        });
+        
+        const data = await response.json();
+        
+        document.getElementById('ai-scan-effect').classList.add('hidden'); 
+        rescanBtn.disabled = false;
+        
+        if (data.error) throw new Error(data.error);
+
+        const items = Object.keys(data);
+        if(items.length === 0) {
+            Swal.fire('掃描結果', '目前畫面中沒有辨識到食材喔！', 'info');
+            return;
+        }
+
+        // 整理辨識結果並顯示 SweetAlert
+        const itemNamesHtml = items.map(itemName => {
+            const count = data[itemName];
+            const dbItem = Object.values(foodDatabase).find(f => f.n === itemName);
+            const type = dbItem ? dbItem.t : "其他";
+            return `<b>${itemName}</b> (${type}) x ${count}`;
+        }).join('<br>');
+        
+        Swal.fire({ 
+            title: `AI 多重識別成功`, 
+            html: `畫面中偵測到以下食材：<br><div class="text-left mt-3 bg-slate-50 p-3 rounded border text-sm max-h-40 overflow-y-auto">${itemNamesHtml}</div><br>是否確定加入庫存？`, 
+            icon: 'success', 
+            showCancelButton: true,
+            confirmButtonColor: '#0ea5e9',
+            cancelButtonColor: '#f59e0b',
+            confirmButtonText: '確定加入',
+            cancelButtonText: '取消'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                items.forEach(itemName => {
+                    const count = data[itemName];
+                    const dbItem = Object.values(foodDatabase).find(f => f.n === itemName);
+                    const type = dbItem ? dbItem.t : "其他";
+                    const days = dbItem ? dbItem.d : 7;
+                    for(let i=0; i<count; i++) addToInventory(itemName, type, days);
+                });
+                Swal.fire({ title: '入庫成功', icon: 'success', timer: 1500, showConfirmButton: false });
+            }
+        });
+
+    } catch (error) {
+        console.error("連線錯誤:", error);
+        document.getElementById('ai-scan-effect').classList.add('hidden'); 
+        rescanBtn.disabled = false;
+        Swal.fire('連線錯誤', '無法連線到 AI 伺服器，請確認伺服器狀態！', 'error');
+    }
+});
+            if(addIngredientForm) addIngredientForm.addEventListener('submit', (e) => { 
+            e.preventDefault(); 
+            const newItem = { id: Date.now().toString(), name: document.getElementById('name').value, type: document.getElementById('type').value, expiry: document.getElementById('expiryDate').value }; 
+            ingredients.push(newItem); 
+            renderUI(); 
+            checkAchievements(); 
+            saveToCloud(); // 👈 加入這行
+            document.getElementById('add-ingredient-form').reset(); 
+            Swal.fire('成功', '食材已手動入庫！', 'success'); 
+        });
+            
+        
+            // 食譜資料庫 (已新增 calories 屬性)
+        // 食譜資料庫 - 完全對應 100 種精選食材
+const recipeDB = [
+    { name: '家常咖哩雞', ingredients: ['雞肉', '紅蘿蔔', '馬鈴薯', '洋蔥'], img: '🍛', calories: 520 },
+    { name: '番茄炒蛋', ingredients: ['番茄', '雞蛋', '青蔥'], img: '🍅', calories: 210 },
+    { name: '蒜泥白肉', ingredients: ['豬五花', '蒜頭', '醬油'], img: '🥓', calories: 450 },
+    { name: '清炒花椰菜', ingredients: ['花椰菜', '蒜頭', '紅蘿蔔'], img: '🥦', calories: 95 },
+    { name: '蔥爆雞丁', ingredients: ['雞肉', '青蔥', '辣椒', '薑'], img: '🍗', calories: 380 },
+    { name: '紅燒鱸魚', ingredients: ['吳郭魚', '青蔥', '薑', '醬油'], img: '🐟', calories: 320 },
+    { name: '培根炒青椒', ingredients: ['培根', '青椒', '蒜頭'], img: '🫑', calories: 280 },
+    { name: '玉米濃湯', ingredients: ['玉米', '牛奶', '雞蛋', '火腿'], img: '🥣', calories: 180 },
+    { name: '麻婆豆腐', ingredients: ['豆腐', '豬肉', '辣辣', '蒜頭'], img: '🍲', calories: 320 },
+    { name: '塔香煎蛋', ingredients: ['雞蛋', '九層塔'], img: '🍳', calories: 190 },
+    { name: '薑絲蛤蜊湯', ingredients: ['蛤蜊', '薑', '青蔥'], img: '🐚', calories: 85 },
+    { name: '奶油燉肉', ingredients: ['豬肉', '馬鈴薯', '牛奶', '奶油'], img: '🥘', calories: 580 },
+    { name: '泡菜炒豬肉', ingredients: ['豬肉', '泡菜', '洋蔥'], img: '🔥', calories: 360 },
+    { name: '香烤鯖魚', ingredients: ['鯖魚', '檸檬'], img: '🍣', calories: 290 },
+    { name: '滑蛋蝦仁', ingredients: ['蝦子', '雞蛋', '青蔥'], img: '🍤', calories: 260 },
+    { name: '蒜炒地瓜葉', ingredients: ['地瓜葉', '蒜頭'], img: '🥬', calories: 110 },
+    { name: '義大利肉醬麵', ingredients: ['麵條', '豬肉', '番茄', '洋蔥'], img: '🍝', calories: 620 },
+    { name: '炸醬麵', ingredients: ['麵條', '豆乾', '豬肉', '小黃瓜'], img: '🍜', calories: 550 },
+    { name: '火腿蛋炒飯', ingredients: ['白米', '火腿', '雞蛋', '青蔥'], img: '🍚', calories: 650 },
+    { name: '香煎豬排', ingredients: ['豬排', '蒜頭', '醬油'], img: '🍱', calories: 420 },
+    { name: '涼拌小黃瓜', ingredients: ['小黃瓜', '蒜頭', '辣椒'], img: '🥒', calories: 60 },
+    { name: '紅燒豆腐', ingredients: ['豆腐', '紅蘿蔔', '青蔥', '醬油'], img: '🍲', calories: 220 },
+    { name: '味噌鮮魚湯', ingredients: ['吳郭魚', '豆腐', '青蔥'], img: '🥣', calories: 180 },
+    { name: '清甜冬瓜湯', ingredients: ['冬瓜', '薑', '蛤蜊'], img: '🥣', calories: 120 },
+    { name: '香菇雞湯', ingredients: ['雞肉', '香菇', '薑'], img: '🍲', calories: 350 },
+    { name: '奶油玉米筍', ingredients: ['玉米筍', '奶油', '蒜頭'], img: '🌽', calories: 140 },
+    { name: '乾煸四季豆', ingredients: ['四季豆', '豬肉', '蒜頭'], img: '🎋', calories: 240 },
+    { name: '肉絲炒麵', ingredients: ['麵條', '豬肉', '高麗菜', '紅蘿蔔'], img: '🍝', calories: 580 },
+    { name: '南瓜燉飯', ingredients: ['白米', '南瓜', '牛奶', '培根'], img: '🥘', calories: 480 },
+    { name: '涼拌毛豆', ingredients: ['毛豆', '蒜頭', '辣椒'], img: '🫛', calories: 120 }
+];
+
+// ==========================================
+// 新增功能：顯示食譜教學的專屬彈出視窗
+// ==========================================
+window.showRecipeTutorial = function(name, ingredientsStr) {
+    const stepsHtml = `
+        <div class="text-left mt-2 space-y-3 text-sm text-slate-700">
+            <p class="font-bold text-lg text-slate-800 border-b pb-1">📝 簡易料理步驟</p>
+            <ol class="list-decimal pl-5 space-y-2 mt-3">
+                <li><b>準備食材：</b>將 <span class="text-sky-600 font-bold">${ingredientsStr}</span> 清洗乾淨並切好備用。</li>
+                <li><b>熱鍋下油：</b>開中火熱鍋，倒入適量的食用油。</li>
+                <li><b>下鍋拌炒：</b>將食材依序下鍋翻炒（若有肉類請先炒至變色）。</li>
+                <li><b>調味悶煮：</b>加入適量鹽巴、醬油等個人喜好的調味料，必要時加少許水悶煮。</li>
+                <li><b>盛盤上桌：</b>確認食材熟透後即可關火盛盤，享用美味的 <b>${name}</b>！</li>
+            </ol>
+            
+            <div class="mt-6 p-4 bg-red-50 rounded-xl border border-red-100 flex flex-col items-center">
+                <p class="text-sm font-bold text-red-800 mb-2">想看更詳細的專業教學嗎？</p>
+                <a href="https://www.youtube.com/results?search_query=${name}+食譜+作法" target="_blank" class="bg-red-500 text-white px-5 py-2 rounded-lg font-bold hover:bg-red-600 transition shadow-md flex items-center gap-2">
+                    ▶️ 在 YouTube 觀看影音教學
+                </a>
+            </div>
+        </div>
+    `;
+
+    Swal.fire({
+                title: `🍴 ${name}`,
+                html: stepsHtml,
+                width: 500,
+                showCloseButton: true,
+                confirmButtonText: '準備開火！',
+                confirmButtonColor: '#0ea5e9'
+            }).then((result) => {
+                // 檢查使用者是否點擊了「確認 (準備開火)」按鈕
+                if (result.isConfirmed) {
+                    
+                    // 1. 定義這道菜需要消耗什麼 (根據變數 name 判斷)
+                    const recipeMap = {
+                        "蒜炒高麗菜": ["高麗菜", "蒜頭"],
+                        "番茄炒蛋": ["番茄", "雞蛋"],
+                        "豬肉水餃": ["豬肉", "高麗菜", "麵粉"],
+                        "鮮奶麥片": ["牛奶", "麥片"]
+                    };
+
+                    // 取得這道料理對應的食材清單，如果找不到就給空陣列
+                    const needToDeduct = recipeMap[name] || [];
+
+                    // 2. 執行扣除邏輯
+                    needToDeduct.forEach(foodName => {
+                        // 尋找冰箱裡第一筆名稱相符的食材索引
+                        const index = ingredients.findIndex(item => item.name === foodName);
+                        if (index !== -1) {
+                            // 找到了就從陣列中移除 1 筆
+                            ingredients.splice(index, 1);
+                        }
+                    });
+
+                    // 3. 更新畫面與提示
+                    renderUI(); // 重新渲染冰箱清單
+                    saveToCloud(); // 👈 加入這行，把扣除後的庫存存上雲端
+                    
+                    Swal.fire({
+                        title: '料理開始！',
+                        text: `已從冰箱自動扣除：${needToDeduct.join('、')}`,
+                        icon: 'success',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            });
+        }
+
+// ==========================================
+// 核心功能：渲染食譜卡片（雙軌模式：100% 匹配 + 靈感推薦）
+// ==========================================
+document.getElementById('match-recipe-btn').addEventListener('click', () => {
+    const resultsContainer = document.getElementById('recipe-results');
+    const suggestContainer = document.getElementById('suggested-recipe-results');
+    const suggestSection = document.getElementById('suggestion-section');
+
+    resultsContainer.innerHTML = '<p class="col-span-full text-center">AI 分析食材庫存中...</p>';
+    if(suggestSection) suggestSection.classList.add('hidden'); // 先隱藏推薦區
+
+    setTimeout(() => {
+        // 先取得今天的日期，過濾掉過期品
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const myItems = ingredients
+            .filter(i => new Date(i.expiry) >= today)
+            .map(i => i.name);
+        
+        // 1. 計算所有食譜的匹配度
+        let allRecipes = recipeDB.map(recipe => {
+            const hasCount = recipe.ingredients.filter(req => myItems.includes(req)).length;
+            const percent = Math.round((hasCount / recipe.ingredients.length) * 100);
+            return { ...recipe, hasCount, percent };
+        });
+
+        // 2. 嚴格模式：100% 匹配的食譜
+        let perfectMatches = allRecipes.filter(recipe => recipe.percent === 100);
+        perfectMatches.sort((a, b) => b.hasCount - a.hasCount);
+
+        // 3. 推薦模式：匹配度大於 0% 但小於 100% 的食譜 (只取前 3 名)
+        let suggestedRecipes = allRecipes.filter(recipe => recipe.percent > 0 && recipe.percent < 100);
+        suggestedRecipes.sort((a, b) => b.percent - a.percent); 
+        suggestedRecipes = suggestedRecipes.slice(0, 3); 
+
+        // 4. 渲染 100% 匹配卡片 (更改 onclick 事件)
+        if (perfectMatches.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="col-span-full text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                    <p class="text-gray-500 font-medium">目前的庫存無法完整做出一道菜 🍳<br>可以參考下方的靈感推薦，或新增更多食材！</p>
+                </div>
+            `;
+        } else {
+            resultsContainer.innerHTML = perfectMatches.map(recipe => `
+                <div class="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden hover:shadow-xl transition-all group">
+                    <div class="h-40 bg-slate-50 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-500">${recipe.img}</div>
+                    <div class="p-5">
+                        <div class="flex justify-between items-start mb-1">
+                            <h3 class="font-bold text-lg text-slate-800">${recipe.name}</h3>
+                            <span class="text-sm font-bold text-green-600">100% 匹配</span>
+                        </div>
+                        <div class="mb-3">
+                            <span class="text-xs bg-orange-50 text-orange-600 px-2 py-0.5 rounded-md font-bold flex items-center w-max gap-1">
+                                🔥 參考熱量：${recipe.calories} kcal
+                            </span>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            ${recipe.ingredients.map(ing => `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-700">✓ ${ing}</span>`).join('')}
+                        </div>
+                        <button onclick="showRecipeTutorial('${recipe.name}', '${recipe.ingredients.join('、')}')" class="w-full py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-black transition">查看料理教學</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 5. 渲染推薦卡片 (更改 onclick 事件)
+        if (suggestedRecipes.length > 0 && suggestSection) {
+            suggestSection.classList.remove('hidden');
+            suggestContainer.innerHTML = suggestedRecipes.map(recipe => `
+                <div class="bg-white rounded-2xl shadow-sm border border-dashed border-amber-200 overflow-hidden hover:shadow-md transition-all opacity-95">
+                    <div class="h-32 bg-amber-50 flex items-center justify-center text-5xl">${recipe.img}</div>
+                    <div class="p-4">
+                        <div class="flex justify-between items-start mb-1">
+                            <h3 class="font-bold text-md text-slate-700">${recipe.name}</h3>
+                            <span class="text-xs font-bold text-amber-600">${recipe.percent}% 匹配</span>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 mt-3 mb-3">
+                            ${recipe.ingredients.map(ing => {
+                                const has = myItems.includes(ing);
+                                return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${has ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-500'}">${has ? '✓' : '缺'} ${ing}</span>`;
+                            }).join('')}
+                        </div>
+                        <button onclick="showRecipeTutorial('${recipe.name}', '${recipe.ingredients.join('、')}')" class="w-full py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold hover:bg-amber-200 transition">查看料理教學</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }, 800);
+});
+// ==========================================
+// 新增功能：刊登食材到惜食市集
+// ==========================================
+window.publishFoodItem = function() {
+    Swal.fire({
+        title: '發布多餘食材',
+        html: `
+            <div class="text-left space-y-3">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">食材名稱</label>
+                    <input id="market-name" class="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-orange-500 outline-none" placeholder="例如：一把空心菜、兩顆蘋果">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">交易方式</label>
+                    <select id="market-type" class="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-orange-500 outline-none">
+                        <option value="免費贈送">免費贈送</option>
+                        <option value="以物易物">以物易物</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">物品描述</label>
+                    <textarea id="market-desc" rows="2" class="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-orange-500 outline-none" placeholder="描述一下食材狀態或希望交換的東西..."></textarea>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '確定刊登',
+        cancelButtonText: '取消',
+        confirmButtonColor: '#f97316', 
+        preConfirm: () => {
+            const name = document.getElementById('market-name').value;
+            const type = document.getElementById('market-type').value;
+            const desc = document.getElementById('market-desc').value;
+            if (!name || !desc) {
+                Swal.showValidationMessage('請填寫食材名稱和描述喔！');
+                return false;
+            }
+            return { name, type, desc };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const { name, type, desc } = result.value;
+            const typeClass = type === '免費贈送' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700';
+            
+            // 產生新的食材卡片 HTML
+            const newCardHtml = `
+                <div class="bg-white rounded-xl shadow-md overflow-hidden border-2 border-orange-100 hover:shadow-xl transition group animate-fade-up relative">
+                    <div class="h-40 bg-orange-50 relative overflow-hidden flex items-center justify-center text-6xl">
+                        🎁
+                        <div class="absolute bottom-2 left-2 bg-white/90 px-2 py-1 rounded text-xs font-bold text-orange-600">距離 0m (您)</div>
+                    </div>
+                    <div class="p-5">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg">${name}</h3>
+                            <span class="${typeClass} text-xs px-2 py-0.5 rounded-full">${type}</span>
+                        </div>
+                        <p class="text-sm text-slate-500 mb-4">${desc}</p>
+                        <div class="flex items-center justify-between border-t pt-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center text-xs font-bold">我</div>
+                                <span class="text-sm text-slate-600 font-bold">我自己</span>
+                            </div>
+                            <button onclick="deleteMarketItem(this)" class="text-sm bg-rose-50 text-rose-500 hover:bg-rose-100 px-3 py-1.5 rounded font-bold transition flex items-center gap-1">
+                                🗑️ 刪除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 將新卡片插入到「新增按鈕」的左邊
+            const addCard = document.getElementById('add-market-card');
+            if (addCard) addCard.insertAdjacentHTML('beforebegin', newCardHtml);
+            
+            Swal.fire('刊登成功！', '您的食材已經分享到市集上了！', 'success');
+        }
+    });
+};
+
+// ==========================================
+// 新增功能：刪除自己刊登的食材卡片
+// ==========================================
+window.deleteMarketItem = function(btnElement) {
+    Swal.fire({
+        title: '確定要刪除刊登嗎？',
+        text: "刪除後就無法恢復囉！",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#f43f5e',
+        cancelButtonColor: '#94a3b8',
+        confirmButtonText: '確定刪除',
+        cancelButtonText: '取消'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // 往上找到包含這個按鈕的那張卡片，然後把它整個移除
+            const card = btnElement.closest('.group');
+            if (card) {
+                card.remove();
+                Swal.fire({ title: '已刪除', text: '您的刊登已成功移除', icon: 'success', timer: 1500, showConfirmButton: false });
+            }
+        }
+    });
+};
+            // 轉盤邏輯
+            if(btnSpinDish) btnSpinDish.addEventListener('click', () => { 
+                const d = document.getElementById('dishDisplay'); 
+                const a = [
+                    '咖哩雞肉飯', '義大利肉醬麵', '麻辣火鍋', '紅燒牛肉麵', '台式滷肉飯', 
+                    '大甲芋頭粥', '蚵仔煎', '深坑臭豆腐', '台南擔仔麵', '鼎泰豐小籠包', 
+                    '日式握壽司', '豚骨拉麵', '勝丼(豬排飯)', '美式培根漢堡', '瑪格麗特披薩', 
+                    '法式戰斧牛排', '台式鐵板燒', '四川麻辣燙', '廣式燒臘飯', '越南火車頭河粉', 
+                    '泰式打拋豬', '韓式炸雞配啤酒', '石鍋拌飯', '滑蛋蝦仁飯', '肉燥炒飯', 
+                    '什錦炒麵', '嘉義涼麵', '彰化肉圓', '古早味碗粿', '虎咬豬(割包)', 
+                    '大腸包小腸', '基隆甜不辣', '八方雲集鍋貼', '高麗菜鮮肉水餃', '溫州大餛飩', 
+                    '福州麻醬麵', '北京炸醬麵', '台南虱目魚粥', '嘉義火雞肉飯', '彰化爌肉飯', 
+                    '溪湖羊肉爐', '內門辦桌菜', '北平烤鴨三吃', '皮蛋瘦肉粥', '廣東皮蛋粥', 
+                    '蚵仔麵線', '鹿港潤餅', '三星蔥油餅', '眷村韭菜盒', '脆皮煎餃', 
+                    '起司蛋餅', '港式蘿蔔糕', '阜杭豆漿油條', '廣式飲茶點心', '班尼迪克蛋', 
+                    '法式吐司', '夏威夷拌飯', '墨西哥捲餅', '照燒雞腿丼', '紅酒燉牛肉'
+                ]; 
+                let c = 0; 
+                const totalSteps = 20 + Math.floor(Math.random() * 20);
+                d.classList.add('text-blue-600'); 
+                const i = setInterval(() => { 
+                    const randomIndex = Math.floor(Math.random() * a.length);
+                    d.innerText = a[randomIndex]; 
+                    c++; 
+                    if(c > totalSteps) { 
+                        clearInterval(i); 
+                        d.innerHTML = `✨ ${d.innerText} ✨`; 
+                    } 
+                }, 80); 
+            });
+
+// ==========================================
+            // 新增功能：食光語錄 (自動輪播)
+            // ==========================================
+            const quotes = [
+                "珍惜食物，就是珍惜地球的資源。🌍",
+                "每一餐的用心，都是對生活的熱愛。❤️",
+                "減少浪費，從你我的冰箱開始。🧊",
+                "冰箱裡的每一份食材，都值得被變成美味。🍲",
+                "惜食不僅是美德，更是一種生活態度。🌱",
+                "料理的魔法，在於把平凡的食材變成驚喜。✨",
+                "拯救即期品，你就是地球的超級英雄！🦸",
+                "粒粒皆辛苦，光盤最幸福。🍽️",
+                "好好吃飯，好好生活，每一天都閃閃發光。☀️",
+                "你的每一次不浪費，都在為地球減碳。📉",
+                "最好的調味料，是對食物的感恩之心。🙏",
+                "把剩菜變新菜，展現你的廚藝魂！👨‍🍳",
+                "計劃性購物，讓錢包和冰箱都開心。💰",
+                "享受料理的過程，品味惜食的快樂。😊",
+                "減少廚餘，讓我們的環境更清新。🌿",
+                "善用每一片葉子，發揮食材最大價值。🥬",
+                "吃多少煮多少，剛剛好的份量最美好。⚖️",
+                "你的惜食行動，正在創造更永續的未來。♻️",
+                "食物不浪費，愛心不打折。💖",
+                "改變世界，就從今天的餐桌開始！🚀",
+                "廚房是創造奇蹟的地方，別讓食材枯萎。🪄",
+                "聰明管理冰箱，做個智慧的「食光守護者」！🛡️"
+            ];
+
+            const quoteDisplay = document.getElementById('quote-display');
+            if (quoteDisplay) {
+                // 將陣列打亂，確保每次進來看到的順序都不一樣
+                quotes.sort(() => Math.random() - 0.5);
+                let currentQuoteIndex = 0;
+                quoteDisplay.innerText = quotes[currentQuoteIndex];
+
+                setInterval(() => {
+                    // 1. 動畫開始：文字縮小並變透明
+                    quoteDisplay.style.opacity = '0';
+                    quoteDisplay.style.transform = 'scale(0.8)'; // 縮小到 0.8 倍
+                    
+                    setTimeout(() => {
+                        // 2. 等待 0.5 秒淡出縮小後，換下一句話
+                        currentQuoteIndex = (currentQuoteIndex + 1) % quotes.length;
+                        quoteDisplay.innerText = quotes[currentQuoteIndex];
+                        
+                        // 3. 換字後：文字恢復正常大小並變不透明 (產生彈出的視覺感)
+                        quoteDisplay.style.opacity = '1';
+                        quoteDisplay.style.transform = 'scale(1)'; // 恢復原尺寸
+                    }, 500); // 淡出與淡入之間的間隔 (毫秒)
+                }, 3500); // 稍微放慢一點輪播速度 (3.5秒)，讓動畫完整呈现，看起來更舒服
+            }            if(deleteExpiredBtn) deleteExpiredBtn.addEventListener('click', () => { 
+            const init=ingredients.length; 
+            ingredients=ingredients.filter(i=> (new Date(i.expiry)-new Date())/(1000*3600*24)>=0); 
+            if(init-ingredients.length>0) { 
+                renderUI(); 
+                saveToCloud(); // 👈 加入這行，自動同步上雲端
+                Swal.fire('完成','已清除過期食材','success'); 
+            } else {
+                Swal.fire('很棒','沒有過期食材','info'); 
+            }
+        });
+        });
+
+        let ingredients = [{id:1, name:'雞胸肉', type:'肉類', expiry: new Date(Date.now()+86400000*2).toISOString().split('T')[0]}, {id:2, name:'高麗菜', type:'蔬菜', expiry: new Date(Date.now()+86400000*5).toISOString().split('T')[0]}, {id:3, name:'牛奶', type:'奶製品', expiry: new Date(Date.now()-86400000).toISOString().split('T')[0]}];
+        let shoppingList = [{id:101, name:'雞蛋', checked:false}, {id:102, name:'洋蔥', checked:true}];
+        
+        function renderUI() {
+            const list = document.getElementById('ingredient-list');
+            if(ingredients.length === 0) { list.innerHTML = '<p class="text-center text-gray-400 py-10">目前沒有食材</p>'; } 
+            else { list.innerHTML = ingredients.map(i => { const d=Math.ceil((new Date(i.expiry)-new Date())/86400000); let c='bg-sky-50 text-sky-800', s=`剩 ${d} 天`; if(d<0){c='bg-gray-100 text-gray-500'; s='已過期';} else if(d<=2){c='bg-rose-50 text-rose-700'; s=`剩 ${d} 天 🔥`;} return `<div class="flex justify-between items-center p-4 rounded-xl border mb-2 ${c}"><div><div class="font-bold text-lg">${i.name} <span class="text-xs border border-current px-1 rounded">${i.type}</span></div><div class="text-sm font-bold opacity-90">${s} (${i.expiry})</div></div><button onclick="removeIngredient('${i.id}')" class="text-xl px-2">✕</button></div>`; }).join(''); }
+            const now = new Date();
+            const warningCount = ingredients.filter(i=>(new Date(i.expiry)-now)/86400000<=3 && (new Date(i.expiry)-now)/86400000>=0).length;
+            document.getElementById('stat-total-items').innerText = ingredients.length;
+            document.getElementById('stat-warning-items').innerText = warningCount;
+            document.getElementById('stat-total-value').innerText = '$' + (ingredients.length * 50);
+            if(!document.getElementById('calendar-tab-content').classList.contains('hidden')) renderCalendar();
+            if(!document.getElementById('analytics-tab-content').classList.contains('hidden')) updateChartGlobal();
+        }
+        window.removeIngredient = function(id) { 
+            Swal.fire({title:'確定移除?',icon:'warning',showCancelButton:true}).then(r=>{
+                if(r.isConfirmed){
+                    ingredients=ingredients.filter(i=>i.id!=id);
+                    renderUI();
+                    checkAchievements();
+                    saveToCloud(); // 👈 加入這行
+                }
+            }); 
+        };
+
+        window.renderShoppingList = function() {
+            document.getElementById('shopping-list-container').innerHTML = shoppingList.map(i => `<li class="flex items-center justify-between p-3 rounded-lg border ${i.checked?'bg-gray-50':''}"><div class="flex gap-3"><input type="checkbox" ${i.checked?'checked':''} onchange="toggleShoppingItem(${i.id})"><span class="${i.checked?'line-through text-gray-400':''}">${i.name}</span></div><button onclick="removeShoppingItem(${i.id})" class="text-gray-400">✕</button></li>`).join('');
+        }
+        window.addShoppingItem = function() { const v=document.getElementById('shopping-input').value; if(v){ shoppingList.push({id:Date.now(), name:v, checked:false}); document.getElementById('shopping-input').value=''; renderShoppingList(); } }
+        window.removeShoppingItem = function(id) { shoppingList=shoppingList.filter(i=>i.id!=id); renderShoppingList(); }
+        window.toggleShoppingItem = function(id) { const i=shoppingList.find(x=>x.id===id); if(i){i.checked=!i.checked; renderShoppingList();} }
+        window.autoGenerateShoppingList = function() { shoppingList.push({id:Date.now(),name:'蒜頭',checked:false}); renderShoppingList(); Swal.fire('已匯入','建議購買：蒜頭','success'); }
+
+        let currentCalendarDate = new Date();
+        window.changeMonth = function(o) { currentCalendarDate.setMonth(currentCalendarDate.getMonth()+o); renderCalendar(); }
+        window.renderCalendar = function() {
+            const y=currentCalendarDate.getFullYear(), m=currentCalendarDate.getMonth();
+            document.getElementById('calendar-month-year').innerText = `${y}年 ${m+1}月`;
+            const daysInMonth = new Date(y, m+1, 0).getDate();
+            const firstDay = new Date(y, m, 1).getDay();
+            let html = '';
+            for(let i=0;i<firstDay;i++) html+=`<div class="h-20 bg-slate-50 rounded-lg"></div>`;
+            for(let d=1;d<=daysInMonth;d++) {
+                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const count = ingredients.filter(i=>i.expiry===dateStr).length;
+                html+=`<div onclick="selectDate('${dateStr}')" class="calendar-day bg-white border rounded-lg p-1 flex flex-col items-center cursor-pointer"><span class="text-sm">${d}</span>${count?`<span class="bg-red-500 text-white text-[10px] px-1.5 rounded-full">${count}</span>`:''}</div>`;
+            }
+            document.getElementById('calendar-grid').innerHTML = html;
+        }
+        window.selectDate = function(d) {
+            const items = ingredients.filter(i=>i.expiry===d);
+            document.getElementById('selected-date-display').innerText = d;
+            document.getElementById('calendar-detail-list').innerHTML = items.length ? items.map(i=>`<div class="p-2 bg-red-50 text-red-800 rounded mb-1">${i.name}</div>`).join('') : '<p class="text-center text-gray-400 py-4">無過期</p>';
+        }
+
+        window.checkAchievements = function() { 
+            const badges = [
+                {id:'newbie', n:'初入廚房', desc:'新增第一項食材', icon:'🥚', c: ingredients.length > 0},
+                {id:'hoarder', n:'倉鼠轉世', desc:'庫存超過 10 項', icon:'🐹', c: ingredients.length >= 10},
+                {id:'veggie', n:'蔬菜達人', desc:'擁有 5 種以上蔬菜', icon:'🥦', c: ingredients.filter(i=>i.type==='蔬菜').length >= 5},
+                {id:'meat', n:'肉肉主義', desc:'擁有 5 種以上肉類', icon:'🍖', c: ingredients.filter(i=>i.type==='肉類').length >= 5},
+                {id:'balanced', n:'均衡飲食', desc:'同時擁有菜、肉、水果', icon:'🥗', c: ingredients.some(i=>i.type==='蔬菜') && ingredients.some(i=>i.type==='肉類') && ingredients.some(i=>i.type==='水果')},
+                {id:'planner', n:'精打細算', desc:'沒有即將過期的食材', icon:'📅', c: ingredients.length > 0 && ingredients.every(i=>(new Date(i.expiry)-new Date())/86400000 > 3)},
+                {id:'zero', n:'零浪費戰士', desc:'目前無過期食材', icon:'🌱', c: ingredients.length > 0 && ingredients.every(i=>(new Date(i.expiry)-new Date())/86400000 >= 0)},
+                {id:'master', n:'食光大師', desc:'解鎖 5 個成就', icon:'👑', c: false} 
+            ];
+            const unlockedCount = badges.filter(b => b.id !== 'master' && b.c).length;
+            badges.find(b => b.id === 'master').c = unlockedCount >= 5;
+            document.getElementById('badges-container').innerHTML = badges.map(b => `
+                <div class="p-4 bg-slate-50 border rounded-xl flex flex-col items-center ${b.c ? 'badge-unlocked-anim' : 'badge-locked'} transition-all duration-500">
+                    <div class="text-4xl mb-2">${b.icon}</div>
+                    <div class="font-bold text-slate-700 text-sm">${b.n}</div>
+                    <div class="text-[10px] text-slate-400 mt-1 text-center">${b.desc}</div>
+                    ${b.c ? '<span class="mt-2 text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">已解鎖</span>' : ''}
+                </div>
+            `).join('');
+        }
+
+        let chart1, chart2;
+        function updateChartGlobal() {
+            if(chart1) chart1.destroy(); 
+            if(chart2) chart2.destroy();
+            const now = new Date();
+            let fresh = 0, warning = 0, expired = 0, totalCarbon = 0;
+            const carbonFactors = { '肉類': 15, '海鮮': 5, '奶製品': 3, '蔬菜': 0.5, '水果': 0.5, '其他': 1 };
+            const categoryCounts = { '蔬菜': 0, '肉類': 0, '海鮮': 0, '水果': 0, '奶製品': 0, '其他': 0, '主食': 0, '飲料': 0, '調味料': 0 };
+            ingredients.forEach(i => {
+                const diffDays = Math.ceil((new Date(i.expiry) - now) / (1000 * 60 * 60 * 24));
+                if (diffDays < 0) expired++; else if (diffDays <= 3) warning++; else fresh++;
+                if (categoryCounts.hasOwnProperty(i.type)) { categoryCounts[i.type]++; totalCarbon += (carbonFactors[i.type] || 1) * 0.5; } else { categoryCounts['其他']++; totalCarbon += 0.5; }
+            });
+            document.getElementById('stat-carbon').innerHTML = `${Math.round(totalCarbon * 10) / 10} <span class="text-sm text-gray-400 font-normal">kg CO2e</span>`;
+            chart1 = new Chart(document.getElementById('expirationChart'), {
+                type: 'doughnut',
+                data: { labels: ['新鮮', '即期 (3天內)', '過期'], datasets: [{ data: [fresh, warning, expired], backgroundColor: ['#34d399', '#fbbf24', '#f87171'] }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+            const activeCategories = Object.keys(categoryCounts).filter(k => categoryCounts[k] > 0);
+            const activeData = activeCategories.map(k => categoryCounts[k]);
+            chart2 = new Chart(document.getElementById('categoryChart'), {
+                type: 'bar',
+                data: { labels: activeCategories, datasets: [{ label: '數量', data: activeData, backgroundColor: '#38bdf8', borderRadius: 5 }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+        }
+    </script>
+</body>
+</html>
